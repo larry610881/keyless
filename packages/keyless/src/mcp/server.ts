@@ -34,7 +34,8 @@ export async function createMcpServer(): Promise<McpServer> {
     };
   }
 
-  const adapter = await createKeychainAdapter(config.stateDir);
+  const masterPassword = process.env.KEYLESS_MASTER_PASSWORD || '';
+  const adapter = await createKeychainAdapter(config.stateDir, masterPassword);
   const store = new KeyStore(config, adapter);
 
   const server = new McpServer({
