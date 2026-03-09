@@ -45,17 +45,18 @@ keyless use openai-prod --dotenv
 
 keyless uses **AES-256-GCM** encryption to protect your API keys locally. You need to set a master password — this is the "key to your vault":
 
-```
-Your master password
-        │
-        ▼
-  PBKDF2 (100,000 iterations, SHA-512) + random salt
-        │
-        ▼
-  256-bit AES encryption key
-        │
-        ▼
-  Encrypts/decrypts every API key in ~/.keyless/vault.enc
+```mermaid
+graph LR
+    A["🔑 Your master password"] --> B["PBKDF2<br/>100,000 iterations<br/>SHA-512 + random salt"]
+    B --> C["256-bit AES key"]
+    C --> D["🔒 AES-256-GCM<br/>encrypt / decrypt"]
+    D --> E["📦 ~/.keyless/vault.enc<br/>(your API keys)"]
+
+    style A fill:#4CAF50,color:#fff
+    style B fill:#FF9800,color:#fff
+    style C fill:#2196F3,color:#fff
+    style D fill:#9C27B0,color:#fff
+    style E fill:#607D8B,color:#fff
 ```
 
 The master password is passed via the `KEYLESS_MASTER_PASSWORD` environment variable in the MCP server config. It **never** leaves your machine — it's only used locally to encrypt and decrypt your vault.
@@ -157,32 +158,24 @@ On macOS/Linux with a desktop keychain, `KEYLESS_MASTER_PASSWORD` is only needed
 
 ## How It Works
 
-```
-  You / AI Agent
-       |
-       v
-  +-----------+     MCP (stdio)     +------------+
-  |  LLM /    | ──────────────────> |  keyless   |
-  |  IDE      | <────────────────── |  MCP server|
-  +-----------+   metadata only     +-----+------+
-                  (name, masked,          |
-                   provider)              |
-                                          v
-                               +--------------------+
-                               |  OS Keychain       |
-                               |  (macOS Keychain / |
-                               |   libsecret /      |
-                               |   Credential Mgr)  |
-                               +--------------------+
-                                          |
-                          key value goes  |  directly to
-                          target, never   v  through LLM
-                               +--------------------+
-                               | .env / ENV / subprocess |
-                               +--------------------+
+```mermaid
+graph TD
+    A["🧑 You / AI Agent"] -->|"use_key(name, target)"| B["🤖 LLM<br/>(Claude / Cursor / Cline)"]
+    B -->|"MCP tool call<br/>(JSON over stdio)"| C["🔐 keyless MCP Server<br/>(runs locally on your machine)"]
+    C -->|"Decrypt"| D["🗝️ OS Keychain / AES-256 Vault<br/>(~/.keyless/vault.enc)"]
+    D -->|"Secret value"| C
+    C -->|"Write directly"| E["📄 .env / ENV var / subprocess"]
+    C -->|"Response: metadata only<br/>name, masked value, status<br/>❌ NEVER the actual key"| B
+    B -->|"'Injected OPENAI_API_KEY into .env'"| A
+
+    style A fill:#4CAF50,color:#fff
+    style B fill:#2196F3,color:#fff
+    style C fill:#FF9800,color:#fff
+    style D fill:#9C27B0,color:#fff
+    style E fill:#607D8B,color:#fff
 ```
 
-The key value flows from the keychain directly to the target (environment variable or `.env` file). It never passes through the LLM conversation. MCP tool responses only contain metadata: name, provider, masked value, status.
+The key value flows from the keychain directly to the target (`.env` file or environment variable). It **never** passes through the LLM conversation. MCP tool responses only contain metadata: name, provider, masked value, status.
 
 ## Usage Examples
 
@@ -244,21 +237,22 @@ You: "Delete the old GitHub PAT"→ LLM calls remove_key
 
 keyless is an **MCP server — a local program** running on your machine. The LLM communicates with it via JSON messages, and keyless **controls what goes back**:
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    LLM (cloud)                               │
-│  Sends:    use_key(name="openai-prod", target="dotenv")     │
-│  Receives: "Injected OPENAI_API_KEY into dotenv."           │
-│  ❌ Never receives the actual key value                      │
-└──────────────────────┬──────────────────────────────────────┘
-                       │ JSON over stdio
-┌──────────────────────▼──────────────────────────────────────┐
-│               keyless MCP server (local)                     │
-│  1. Reads encrypted value from OS keychain                   │
-│  2. Writes OPENAI_API_KEY=sk-proj-... to .env                │
-│  3. Returns ONLY "Injected OPENAI_API_KEY into dotenv."     │
-│  4. guards.ts scans response — redacts any leaked patterns   │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+sequenceDiagram
+    participant U as 🧑 You
+    participant L as 🤖 LLM (cloud)
+    participant K as 🔐 keyless (local)
+    participant V as 🗝️ Vault
+    participant E as 📄 .env
+
+    U->>L: "Put the OpenAI key into .env"
+    L->>K: use_key(name="openai-prod", target="dotenv")
+    K->>V: Decrypt key from vault
+    V-->>K: sk-proj-abc123xyz (plaintext)
+    K->>E: Write OPENAI_API_KEY=sk-proj-abc123xyz
+    K-->>L: "Injected OPENAI_API_KEY into dotenv." ✅
+    Note over K,L: ❌ Key value is NOT in this response
+    L-->>U: "Done! OPENAI_API_KEY is in your .env file."
 ```
 
 > **Best practice**: Use `keyless add` in the terminal to store keys (zero LLM exposure), then let the AI agent use them via `use_key`.
