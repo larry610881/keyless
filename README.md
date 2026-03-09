@@ -41,7 +41,30 @@ keyless use openai-prod --dotenv
 
 ## MCP Server Setup
 
-### Claude Code (global)
+### Step 1: Set your Master Password
+
+keyless uses **AES-256-GCM** encryption to protect your API keys locally. You need to set a master password — this is the "key to your vault":
+
+```
+Your master password
+        │
+        ▼
+  PBKDF2 (100,000 iterations, SHA-512) + random salt
+        │
+        ▼
+  256-bit AES encryption key
+        │
+        ▼
+  Encrypts/decrypts every API key in ~/.keyless/vault.enc
+```
+
+The master password is passed via the `KEYLESS_MASTER_PASSWORD` environment variable in the MCP server config. It **never** leaves your machine — it's only used locally to encrypt and decrypt your vault.
+
+> **Important**: If you lose the master password, you cannot recover your stored keys. Choose something memorable but secure.
+
+### Step 2: Register as MCP Server
+
+#### Claude Code (global — all projects)
 
 Add to `~/.claude/settings.json`:
 
@@ -50,26 +73,32 @@ Add to `~/.claude/settings.json`:
   "mcpServers": {
     "keyless": {
       "command": "npx",
-      "args": ["keyless", "serve"]
+      "args": ["keyless", "serve"],
+      "env": {
+        "KEYLESS_MASTER_PASSWORD": "your-master-password-here"
+      }
     }
   }
 }
 ```
 
-Or use a local build (development):
+Local build (development):
 
 ```json
 {
   "mcpServers": {
     "keyless": {
       "command": "node",
-      "args": ["/path/to/keyless/packages/keyless/dist/mcp.js"]
+      "args": ["/path/to/keyless/packages/keyless/dist/mcp.js"],
+      "env": {
+        "KEYLESS_MASTER_PASSWORD": "your-master-password-here"
+      }
     }
   }
 }
 ```
 
-### Cursor
+#### Cursor
 
 Add to `.cursor/mcp.json`:
 
@@ -78,13 +107,16 @@ Add to `.cursor/mcp.json`:
   "mcpServers": {
     "keyless": {
       "command": "npx",
-      "args": ["keyless", "serve"]
+      "args": ["keyless", "serve"],
+      "env": {
+        "KEYLESS_MASTER_PASSWORD": "your-master-password-here"
+      }
     }
   }
 }
 ```
 
-### Cline
+#### Cline
 
 Add to Cline MCP settings:
 
@@ -93,11 +125,35 @@ Add to Cline MCP settings:
   "mcpServers": {
     "keyless": {
       "command": "npx",
-      "args": ["keyless", "serve"]
+      "args": ["keyless", "serve"],
+      "env": {
+        "KEYLESS_MASTER_PASSWORD": "your-master-password-here"
+      }
     }
   }
 }
 ```
+
+### Step 3: Restart your AI agent
+
+Restart Claude Code / Cursor / Cline. Verify keyless is connected:
+
+- Claude Code: run `/mcp` to see keyless and its 7 tools
+- Cursor: check MCP panel in settings
+- Cline: check MCP server status
+
+### Storage backends
+
+keyless auto-detects the best storage for your platform:
+
+| Platform | Primary Backend | Fallback |
+|----------|----------------|----------|
+| macOS | Keychain (no password needed) | AES-256-GCM vault |
+| Linux (Desktop) | libsecret / GNOME Keyring | AES-256-GCM vault |
+| Linux (WSL / headless) | — | AES-256-GCM vault |
+| Windows | Credential Manager | AES-256-GCM vault |
+
+On macOS/Linux with a desktop keychain, `KEYLESS_MASTER_PASSWORD` is only needed as fallback. On WSL and headless servers, the AES-256 vault is always used.
 
 ## How It Works
 
@@ -301,6 +357,7 @@ See [skills/keyless/SKILL.md](./skills/keyless/SKILL.md) for the full skill defi
 
 | Environment Variable | Default | Description |
 |---|---|---|
+| `KEYLESS_MASTER_PASSWORD` | `""` | Master password for AES-256-GCM vault encryption. **Required** on WSL/headless Linux. Set this in your MCP server config `env` block. |
 | `KEYLESS_STATE_DIR` | `~/.keyless` | Directory for index, vault, audit log, and config |
 | `KEYLESS_BACKEND` | `auto` | Storage backend: `keychain`, `file`, or `auto` |
 | `KEYLESS_AUDIT` | `true` | Set to `false` to disable audit logging |
