@@ -67,28 +67,13 @@ The master password is passed via the `KEYLESS_MASTER_PASSWORD` environment vari
 
 #### Claude Code (global — all projects)
 
-Add to `~/.claude/settings.json`:
+Add to `~/.claude.json` (note: **not** `~/.claude/settings.json`):
 
 ```json
 {
   "mcpServers": {
     "keyless": {
-      "command": "npx",
-      "args": ["keyless", "serve"],
-      "env": {
-        "KEYLESS_MASTER_PASSWORD": "your-master-password-here"
-      }
-    }
-  }
-}
-```
-
-Local build (development):
-
-```json
-{
-  "mcpServers": {
-    "keyless": {
+      "type": "stdio",
       "command": "node",
       "args": ["/path/to/keyless/packages/keyless/dist/mcp.js"],
       "env": {
@@ -99,6 +84,8 @@ Local build (development):
 }
 ```
 
+> **Tip**: If you already have other MCP servers in `~/.claude.json`, just add the `"keyless": {...}` block inside the existing `"mcpServers"` object.
+
 #### Cursor
 
 Add to `.cursor/mcp.json`:
@@ -107,8 +94,9 @@ Add to `.cursor/mcp.json`:
 {
   "mcpServers": {
     "keyless": {
-      "command": "npx",
-      "args": ["keyless", "serve"],
+      "type": "stdio",
+      "command": "node",
+      "args": ["/path/to/keyless/packages/keyless/dist/mcp.js"],
       "env": {
         "KEYLESS_MASTER_PASSWORD": "your-master-password-here"
       }
@@ -125,8 +113,9 @@ Add to Cline MCP settings:
 {
   "mcpServers": {
     "keyless": {
-      "command": "npx",
-      "args": ["keyless", "serve"],
+      "type": "stdio",
+      "command": "node",
+      "args": ["/path/to/keyless/packages/keyless/dist/mcp.js"],
       "env": {
         "KEYLESS_MASTER_PASSWORD": "your-master-password-here"
       }
