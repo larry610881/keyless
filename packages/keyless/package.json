@@ -1,0 +1,41 @@
+{
+  "name": "keyless",
+  "version": "0.1.0",
+  "description": "Local API key and PAT manager for AI coding agents",
+  "type": "module",
+  "license": "MIT",
+  "keywords": ["mcp", "api-keys", "secrets", "keychain", "cli", "ai-agents"],
+  "engines": { "node": ">=20" },
+  "bin": { "keyless": "./dist/cli.js" },
+  "exports": {
+    ".": { "import": "./dist/index.js", "types": "./dist/index.d.ts" },
+    "./mcp": { "import": "./dist/mcp.js", "types": "./dist/mcp.d.ts" }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsx src/cli.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "commander": "^13.1.0",
+    "chalk": "^5.4.0",
+    "nanoid": "^5.1.0",
+    "zod": "^3.25.0",
+    "cli-table3": "^0.6.5",
+    "dotenv": "^16.5.0"
+  },
+  "devDependencies": {
+    "tsup": "^8.5.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0",
+    "vitest": "^3.1.0",
+    "@vitest/coverage-v8": "^3.1.0",
+    "@types/node": "^22.14.0"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "name": "@keyless/e2e-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:e2e": "vitest run"
+  },
+  "devDependencies": {
+    "vitest": "^3.1.0"
+  }
+}
