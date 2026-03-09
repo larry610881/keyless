@@ -168,50 +168,74 @@ The key value flows from the keychain directly to the target (`.env` file or env
 
 ## Usage Examples
 
-### Store a key via CLI (most secure — LLM never touches the value)
+### Recommended: Store keys via CLI, use keys via AI agent
+
+This is the **most secure** workflow. The LLM never touches the key value at any point:
+
+```mermaid
+sequenceDiagram
+    participant U as 🧑 You (terminal)
+    participant K as 🔐 keyless CLI (local)
+    participant L as 🤖 LLM (cloud)
+    participant V as 🗝️ Vault
+    participant E as 📄 .env
+
+    Note over U,K: Step 1 — Store key in terminal (LLM not involved)
+    U->>K: keyless add openai-prod
+    K->>U: Enter key: ********
+    U->>K: (masked input)
+    K->>V: Encrypt & store
+    K->>U: ✓ stored (masked: sk-p...z789)
+
+    Note over U,L: Step 2 — Use key via AI agent (LLM never sees value)
+    U->>L: "Put the OpenAI key into .env"
+    L->>K: use_key(name="openai-prod", target="dotenv")
+    K->>V: Decrypt
+    V-->>K: sk-proj-abc123xyz
+    K->>E: Write OPENAI_API_KEY=sk-proj-abc123xyz
+    K-->>L: "Injected OPENAI_API_KEY into dotenv." ✅
+    Note over K,L: ❌ Key value is NOT in this response
+    L-->>U: "Done! Key is in your .env file."
+```
+
+**Step 1: Store via CLI** (in your terminal, not in AI chat):
 
 ```bash
-keyless add openai-prod
-# Enter key: ******** (masked input)
+# Local build
+node /path/to/keyless/packages/keyless/dist/cli.js add openai-prod
+# Enter key: ******** (masked — even you can't see it)
 # ✓ Key "openai-prod" stored (provider: openai, env: OPENAI_API_KEY)
 ```
 
-### Then use it from your AI agent
-
-Talk to Claude Code / Cursor / Cline naturally:
+**Step 2: Use via AI agent** (talk naturally):
 
 ```
 You: "Put the OpenAI key into .env"
+You: "Run pytest, use the OpenAI key"
+You: "List my API keys"
 ```
 
-The LLM calls `use_key`:
+The LLM only knows the key **name**, never the value.
 
-```json
-// Tool call (LLM → keyless)
-{ "name": "openai-prod", "target": "dotenv" }
+### Alternative: Store via AI agent (convenient, less secure)
 
-// Response (keyless → LLM) — no secret value!
-"Injected OPENAI_API_KEY into dotenv."
-```
-
-Your `.env` now has `OPENAI_API_KEY=sk-proj-...` but the LLM never saw the actual value.
-
-### Store a key via AI agent (convenient, but LLM sees the value once)
+You can also paste a key directly in chat:
 
 ```
 You: "Store this key: sk-proj-abc123xyz"
 ```
 
-The LLM calls `add_key`:
+```mermaid
+graph LR
+    A["⚠️ LLM sees key once<br/>(in your message)"] --> B["keyless encrypts it"]
+    B --> C["Response: only masked value<br/>sk-p...xyz"]
+    C --> D["Key stored safely<br/>but remains in chat history"]
 
-```json
-// Tool call — LLM passes the value to the local MCP server
-{ "name": "openai-prod", "value": "sk-proj-abc123xyz" }
-
-// Response — only masked value returned, never the full key
-{ "status": "stored", "masked": "sk-p...xyz",
-  "message": "The key value has been encrypted. Please delete it from this conversation." }
+    style A fill:#FF9800,color:#fff
+    style D fill:#FF9800,color:#fff
 ```
+
+> **Warning**: The key value stays in your **conversation history** for the current session. The LLM can see it in previous messages. After storing, start a new session for maximum security.
 
 ### Common AI agent workflows
 
@@ -222,29 +246,13 @@ You: "Any keys expiring soon?"  → LLM calls check_expiry → sees expiry dates
 You: "Delete the old GitHub PAT"→ LLM calls remove_key
 ```
 
-### Why the LLM can't see key values
+### Security comparison
 
-keyless is an **MCP server — a local program** running on your machine. The LLM communicates with it via JSON messages, and keyless **controls what goes back**:
-
-```mermaid
-sequenceDiagram
-    participant U as 🧑 You
-    participant L as 🤖 LLM (cloud)
-    participant K as 🔐 keyless (local)
-    participant V as 🗝️ Vault
-    participant E as 📄 .env
-
-    U->>L: "Put the OpenAI key into .env"
-    L->>K: use_key(name="openai-prod", target="dotenv")
-    K->>V: Decrypt key from vault
-    V-->>K: sk-proj-abc123xyz (plaintext)
-    K->>E: Write OPENAI_API_KEY=sk-proj-abc123xyz
-    K-->>L: "Injected OPENAI_API_KEY into dotenv." ✅
-    Note over K,L: ❌ Key value is NOT in this response
-    L-->>U: "Done! OPENAI_API_KEY is in your .env file."
-```
-
-> **Best practice**: Use `keyless add` in the terminal to store keys (zero LLM exposure), then let the AI agent use them via `use_key`.
+| Method | LLM sees key? | Recommended |
+|--------|:---:|:---:|
+| **CLI** `keyless add` → AI `use_key` | **Never** | **Yes** |
+| Chat `"store sk-..."` → AI `use_key` | Once (in history) | For convenience only |
+| Paste in `.env` directly | Depends on agent file access | No |
 
 ## Why
 
